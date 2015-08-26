@@ -3,7 +3,7 @@
 
 # return	true, if variable is set; else false
 isSet() {
-  if [[ ! ${!1} && ${!1-_} ]]; then return 1; else return 0; fi
+  if declare -p $1 >/dev/null 2>&1; then return 0; else return 1; fi
 }
 
 activateIO() {
@@ -23,7 +23,7 @@ upgrade_config_file () {
     temp=$(mktemp /tmp/tmp.XXXXXX)
     (( $? != 0 )) && return 1
     activateIO "$temp"
-    echo "#version=3.0_rc2"
+    echo "#version=3.1"
     echo "# Uncomment to change the default values (shown after =)"
     echo "# WARNING:"
     echo "# This is not true for UMASK, CONFIG_prebackup and CONFIG_postbackup!!!"
@@ -57,6 +57,12 @@ upgrade_config_file () {
     else
       echo "#CONFIG_mysql_dump_host='localhost'"
     fi
+    echo "# Use --login-path to connect to the database for MySQL > 5.6"
+    echo "#CONFIG_mysql_dump_useloginpath='no'"
+    echo ""
+    echo "# The host alias for login-path connection"
+    echo "#CONFIG_mysql_dump_loginpath='myalias'"
+    echo ""
     echo ""
     echo "# \"Friendly\" host name of MySQL server to be used in email log"
     echo "# if unset or empty (default) will use CONFIG_mysql_dump_host instead"
@@ -404,10 +410,10 @@ parse_config_file () {
 echo "### Checking archive files for existence, readability and integrity."
 echo
 
-precheck_files=( automysqlbackup 7a82ee63819f9b6f584f63af69aee8cd
-automysqlbackup.conf d525efa3da15ce9fea96893e5a8ce6d5
-README b17740fcd3a5f8579b907a42249a83cd
-LICENSE 39bba7d2cf0ba1036f2a6e2be52fe3f0
+precheck_files=( automysqlbackup a6c795df279508a92a7871a9262650fd
+automysqlbackup.conf a6c795df279508a92a7871a9262650fd
+README 71455b5e569278d231c9a4cffeb00b8f
+LICENSE 5dcdfe25f21119aa5435eab9d0256af7
 )
 
 n=$(( ${#precheck_files[@]}/2 ))
