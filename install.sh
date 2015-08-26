@@ -411,9 +411,9 @@ echo "### Checking archive files for existence, readability and integrity."
 echo
 
 precheck_files=( automysqlbackup a6c795df279508a92a7871a9262650fd
-automysqlbackup.conf a6c795df279508a92a7871a9262650fd
-README 71455b5e569278d231c9a4cffeb00b8f
-LICENSE 5dcdfe25f21119aa5435eab9d0256af7
+automysqlbackup.conf 2bf3f76c7e0fb85888feb6930082202e
+README b17740fcd3a5f8579b907a42249a83cd
+LICENSE 39bba7d2cf0ba1036f2a6e2be52fe3f0
 )
 
 n=$(( ${#precheck_files[@]}/2 ))
