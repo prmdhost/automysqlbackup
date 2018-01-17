@@ -99,6 +99,13 @@ load_default_config() {
   CONFIG_encrypt_password='password0123'
 }
 
+mysql_commands() {
+  VERSION=`mysql -V | grep -oE "[0-9]+\.[0-9]+\.[0-9]+"`
+  NODOT_VER=`echo $VERSION | sed -r 's/\.//g'`
+  
+  printf 'mysql version %s \n' "$VERSION"
+}
+
 # @return:	true, if variable is set; else false
 isSet() {
   if declare -p $1 >/dev/null 2>&1; then return 0; else return 1; fi
@@ -450,12 +457,21 @@ parse_configuration () {
 	  # OPT string for use with mysqlstatus
 	  opt_dbstatus=( '--status' )
 
-    [[ "${CONFIG_mysql_dump_usessl}" = "yes" ]] 		&& {
-	  opt=( "${opt[@]}" '--ssl' )
-	  mysql_opt=( "${mysql_opt[@]}" '--ssl' )
-	  opt_fullschema=( "${opt_fullschema[@]}" '--ssl' )
-	  opt_dbstatus=( "${opt_dbstatus[@]}" '--ssl' )
-    }
+	if [ "$NODOT_VER" -ge 56 ]; then
+		[[ "${CONFIG_mysql_dump_usessl}" = "yes" ]] 		&& {
+		  opt=( "${opt[@]}" '--ssl-mode=REQUIRED' )
+		  mysql_opt=( "${mysql_opt[@]}" '--ssl-mode=REQUIRED' )
+		  opt_fullschema=( "${opt_fullschema[@]}" '--ssl-mode=REQUIRED' )
+		  opt_dbstatus=( "${opt_dbstatus[@]}" '--ssl-mode=REQUIRED' )
+		}
+	else
+		[[ "${CONFIG_mysql_dump_usessl}" = "yes" ]] 		&& {
+		  opt=( "${opt[@]}" '--ssl' )
+		  mysql_opt=( "${mysql_opt[@]}" '--ssl' )
+		  opt_fullschema=( "${opt_fullschema[@]}" '--ssl' )
+		  opt_dbstatus=( "${opt_dbstatus[@]}" '--ssl' )
+		}
+	fi
     [[ "${CONFIG_mysql_dump_master_data}" ]] && (( ${CONFIG_mysql_dump_master_data} == 1 || ${CONFIG_mysql_dump_master_data} == 2 )) && { opt=( "${opt[@]}" "--master-data=${CONFIG_mysql_dump_master_data}" );}
     [[ "${CONFIG_mysql_dump_single_transaction}" = "yes" ]]	&& {
 	  opt=( "${opt[@]}" '--single-transaction' )
@@ -1648,11 +1664,14 @@ method_backup () {
 	if [[ -r "${CONFIG_configfile}" ]]; then source "${CONFIG_configfile}"; echo "Parsed config file \"${CONFIG_configfile}\""; else let "N |= $N_config_file_missing"; fi; echo
 	if (( $opt_flag_config_file )); then if [[ -r "${opt_config_file}" ]]; then source "${opt_config_file}"; let "N |= $N_arg_conffile_parsed"; else let "N |= $N_arg_conffile_unreadable"; fi; else let "N |= $N_too_many_args"; fi
 
-  login_opt="--user=${CONFIG_mysql_dump_username} --password=${CONFIG_mysql_dump_password} --host="${CONFIG_mysql_dump_host}""
+	# load mysql commands
+	mysql_commands
 
-  [[ "${CONFIG_mysql_dump_useloginpath}" = "yes" ]]    && {
-    login_opt="--login-path=${CONFIG_mysql_dump_loginpath}"
-  }
+	login_opt="--user=${CONFIG_mysql_dump_username} --password=${CONFIG_mysql_dump_password} --host="${CONFIG_mysql_dump_host}""
+	
+	[[ "${CONFIG_mysql_dump_useloginpath}" = "yes" ]]    && {
+	  login_opt="--login-path=${CONFIG_mysql_dump_loginpath}"
+	}
 
 	(( $CONFIG_dryrun )) && {
 	  echo "NOTE: We are dry-running. That means, that the script just shows you what it would do, if it were operating normally."
@@ -2021,11 +2040,14 @@ method_list_manifest_entries () {
 	if [[ -r "${CONFIG_configfile}" ]]; then source "${CONFIG_configfile}"; echo "Parsed config file \"${CONFIG_configfile}\""; else let "N |= $N_config_file_missing"; fi; echo
 	if (( $opt_flag_config_file )); then if [[ -r "${opt_config_file}" ]]; then source "${opt_config_file}"; let "N |= $N_arg_conffile_parsed"; else let "N |= $N_arg_conffile_unreadable"; fi; else let "N |= $N_too_many_args"; fi
 
-  login_opt="--user=${CONFIG_mysql_dump_username} --password=${CONFIG_mysql_dump_password} --host="${CONFIG_mysql_dump_host}""
+	# load mysql commands
+	mysql_commands
 
-  [[ "${CONFIG_mysql_dump_useloginpath}" = "yes" ]]    && {
-    login_opt="--login-path=${CONFIG_mysql_dump_loginpath}"
-  }
+	login_opt="--user=${CONFIG_mysql_dump_username} --password=${CONFIG_mysql_dump_password} --host="${CONFIG_mysql_dump_host}""
+
+	[[ "${CONFIG_mysql_dump_useloginpath}" = "yes" ]]    && {
+	  login_opt="--login-path=${CONFIG_mysql_dump_loginpath}"
+	}
 
 	export LC_ALL=C
 	PROGNAME=`basename $0`
