@@ -64,6 +64,9 @@ load_default_config() {
   CONFIG_rotation_daily=6
   CONFIG_rotation_weekly=35
   CONFIG_rotation_monthly=150
+  CONFIG_mysql_exec='mysql'
+  CONFIG_mysql_show_exec='mysqlshow'
+  CONFIG_mysql_dump_exec='mysqldump'
   CONFIG_mysql_dump_port=3306
   CONFIG_mysql_dump_usessl='yes'
   CONFIG_mysql_dump_useloginpath='no'
@@ -532,7 +535,7 @@ parse_configuration () {
 	  db=${i%.*}
 	  table=${i#"$db".}
 	  r='\*'; [[ "$i" =~ $r ]] || { tmp[z++]="$i"; continue; }
-	  while read -r; do tmp[z++]="${db}.${REPLY}"; done < <(mysql $login_opt "${mysql_opt[@]}" --batch --skip-column-names -e "select table_name from information_schema.tables where table_schema='${db}' and table_name like '${table//\*/%}';")
+	  while read -r; do tmp[z++]="${db}.${REPLY}"; done < <($mysqlexec $login_opt "${mysql_opt[@]}" --batch --skip-column-names -e "select table_name from information_schema.tables where table_schema='${db}' and table_name like '${table//\*/%}';")
 	done
 	for l in "${tmp[@]}"; do echo "exclude $l";done
 	CONFIG_table_exclude=("${tmp[@]}")
@@ -566,15 +569,15 @@ dbstatus() {
   else
     case "${CONFIG_mysql_dump_compression}" in
 	'gzip')
-	  mysqlshow $login_opt "${opt_dbstatus[@]}" | gzip_compression > "${1}${suffix}";
+	  $mysqlshowexec $login_opt "${opt_dbstatus[@]}" | gzip_compression > "${1}${suffix}";
 	  return $?
 	  ;;
 	'bzip2')
-	  mysqlshow $login_opt "${opt_dbstatus[@]}" | bzip2_compression > "${1}${suffix}";
+	  $mysqlshowexec $login_opt "${opt_dbstatus[@]}" | bzip2_compression > "${1}${suffix}";
 	  return $?
 	  ;;
 	*)
-	  mysqlshow $login_opt "${opt_dbstatus[@]}" > "${1}${suffix}";
+	  $mysqlshowexec $login_opt "${opt_dbstatus[@]}" > "${1}${suffix}";
 	  return $?
 	  ;;
     esac
@@ -602,15 +605,15 @@ fullschema () {
   else
     case "${CONFIG_mysql_dump_compression}" in
 	'gzip')
-	  mysqldump $login_opt "${opt_fullschema[@]}" | gzip_compression > "${1}${suffix}";
+	  $dumpexec $login_opt "${opt_fullschema[@]}" | gzip_compression > "${1}${suffix}";
 	  return $?
 	  ;;
 	'bzip2')
-	  mysqldump $login_opt "${opt_fullschema[@]}" | bzip2_compression > "${1}${suffix}";
+	  $dumpexec $login_opt "${opt_fullschema[@]}" | bzip2_compression > "${1}${suffix}";
 	  return $?
 	  ;;
 	*)
-	  mysqldump $login_opt "${opt_fullschema[@]}" > "${1}${suffix}";
+	  $dumpexec $login_opt "${opt_fullschema[@]}" > "${1}${suffix}";
 	  return $?
 	  ;;
     esac
@@ -728,13 +731,13 @@ process_dbs() {
 		uid="${uid:-8:8}"
 		case "${CONFIG_mysql_dump_compression}" in
 		'gzip')
-		  mysqldump $login_opt "${opt[@]}" "$@" | gzip_compression > "$cfname";
+		  $dumpexec $login_opt "${opt[@]}" "$@" | gzip_compression > "$cfname";
 		  ;;
 		'bzip2')
-		  mysqldump $login_opt "${opt[@]}" "$@" | bzip2_compression > "$cfname";
+		  $dumpexec $login_opt "${opt[@]}" "$@" | bzip2_compression > "$cfname";
 		  ;;
 		*)
-		  mysqldump $login_opt "${opt[@]}" "$@" > "$cfname";
+		  $dumpexec $login_opt "${opt[@]}" "$@" > "$cfname";
 		  ;;
 		esac
 		add_manifest_entry "$manifest_file" "$cfname" "$pid" "$db" && parse_manifest "$manifest_file" && cp -al "$cfname" "${CONFIG_backup_dir}"/latest/ && echo "Generated master backup $cfname" && return 0 || return 1
@@ -747,29 +750,29 @@ process_dbs() {
 		case "${CONFIG_mysql_dump_compression}" in
 		'gzip')
 		  if (( $filename_flags & $filename_flag_gz )); then
-			diff <(gzip_compression -dc "${manifest_latest_master_entry[0]}") <(mysqldump $login_opt "${opt[@]}" "$@") | gzip_compression > "$cfname";
+			diff <(gzip_compression -dc "${manifest_latest_master_entry[0]}") <($dumpexec $login_opt "${opt[@]}" "$@") | gzip_compression > "$cfname";
 		  elif (( $filename_flags & $filename_flag_bz2 )); then
-			diff <(bzip2_compression -dc "${manifest_latest_master_entry[0]}") <(mysqldump $login_opt "${opt[@]}" "$@") | gzip_compression > "$cfname";
+			diff <(bzip2_compression -dc "${manifest_latest_master_entry[0]}") <($dumpexec $login_opt "${opt[@]}" "$@") | gzip_compression > "$cfname";
 		  else
-			diff "${manifest_latest_master_entry[0]}" <(mysqldump $login_opt "${opt[@]}" "$@") | gzip_compression > "$cfname";
+			diff "${manifest_latest_master_entry[0]}" <($dumpexec $login_opt "${opt[@]}" "$@") | gzip_compression > "$cfname";
 		  fi
 		  ;;
 		'bzip2')
 		  if (( $filename_flags & $filename_flag_gz )); then
-			diff <(gzip_compression -dc "${manifest_latest_master_entry[0]}") <(mysqldump $login_opt "${opt[@]}" "$@") | bzip2_compression > "$cfname";
+			diff <(gzip_compression -dc "${manifest_latest_master_entry[0]}") <($dumpexec $login_opt "${opt[@]}" "$@") | bzip2_compression > "$cfname";
 		  elif (( $filename_flags & $filename_flag_bz2 )); then
-			diff <(bzip2_compression -dc "${manifest_latest_master_entry[0]}") <(mysqldump $login_opt "${opt[@]}" "$@") | bzip2_compression > "$cfname";
+			diff <(bzip2_compression -dc "${manifest_latest_master_entry[0]}") <($dumpexec $login_opt "${opt[@]}" "$@") | bzip2_compression > "$cfname";
 		  else
-			diff "${manifest_latest_master_entry[0]}" <(mysqldump $login_opt "${opt[@]}" "$@") | bzip2_compression > "$cfname";
+			diff "${manifest_latest_master_entry[0]}" <($dumpexec $login_opt "${opt[@]}" "$@") | bzip2_compression > "$cfname";
 		  fi
 		  ;;
 		*)
 		  if (( $filename_flags & $filename_flag_gz )); then
-			diff <(gzip_compression -dc "${manifest_latest_master_entry[0]}") <(mysqldump $login_opt "${opt[@]}" "$@") > "$cfname";
+			diff <(gzip_compression -dc "${manifest_latest_master_entry[0]}") <($dumpexec $login_opt "${opt[@]}" "$@") > "$cfname";
 		  elif (( $filename_flags & $filename_flag_bz2 )); then
-			diff <(bzip2_compression -dc "${manifest_latest_master_entry[0]}") <(mysqldump $login_opt "${opt[@]}" "$@") > "$cfname";
+			diff <(bzip2_compression -dc "${manifest_latest_master_entry[0]}") <($dumpexec $login_opt "${opt[@]}" "$@") > "$cfname";
 		  else
-			diff "${manifest_latest_master_entry[0]}" <(mysqldump $login_opt "${opt[@]}" "$@") > "$cfname";
+			diff "${manifest_latest_master_entry[0]}" <($dumpexec $login_opt "${opt[@]}" "$@") > "$cfname";
 		  fi
 		  ;;
 		esac
@@ -796,15 +799,15 @@ process_dbs() {
 	  else
 		case "${CONFIG_mysql_dump_compression}" in
 		'gzip')
-		  mysqldump $login_opt "${opt[@]}" "$@" | gzip_compression > "${cfname}"
+		  $dumpexec $login_opt "${opt[@]}" "$@" | gzip_compression > "${cfname}"
 		  ret=$?
 		  ;;
 		'bzip2')
-		  mysqldump $login_opt "${opt[@]}" "$@" | bzip2_compression > "${cfname}"
+		  $dumpexec $login_opt "${opt[@]}" "$@" | bzip2_compression > "${cfname}"
 		  ret=$?
 		  ;;
 		*)
-		  mysqldump $login_opt "${opt[@]}" "$@" > "${cfname}"
+		  $dumpexec $login_opt "${opt[@]}" "$@" > "${cfname}"
 		  ret=$?
 		  ;;
 		esac
@@ -1016,7 +1019,7 @@ cleanup_latest ()  {
 check_dependencies () {
     echo
     echo "# Testing for installed programs"
-    dependencies=( 'mysql' 'mysqldump' )
+    dependencies=( )
 
 	if [[ "x$CONFIG_multicore" = 'xyes' ]]; then
 
@@ -1081,7 +1084,7 @@ parse_databases() {
   printf "# Parsing databases ... "
   # bash 3.0
   local i;i=0;
-  while read -r; do alldbnames[i++]="$REPLY"; done < <(mysql $login_opt "${mysql_opt[@]}" --batch --skip-column-names -e "show databases")
+  while read -r; do alldbnames[i++]="$REPLY"; done < <($mysqlexec $login_opt "${mysql_opt[@]}" --batch --skip-column-names -e "show databases")
   unset i
 
   # mkfifo foo || exit; trap 'rm -f foo' EXIT
@@ -1667,6 +1670,9 @@ method_backup () {
 	# load mysql commands
 	mysql_commands
 
+	mysqlexec=${CONFIG_mysql_exec}
+	mysqlshowexec=${CONFIG_mysql_show_exec}
+	dumpexec=${CONFIG_mysql_dump_exec}
 	login_opt="--user=${CONFIG_mysql_dump_username} --password=${CONFIG_mysql_dump_password} --host="${CONFIG_mysql_dump_host}""
 	
 	[[ "${CONFIG_mysql_dump_useloginpath}" = "yes" ]]    && {
@@ -1682,7 +1688,7 @@ method_backup () {
 	export LC_ALL=C
 	PROGNAME=`basename $0`
 	PATH=${PATH}:/usr/local/bin:/usr/bin:/bin:/usr/local/mysql/bin
-	version=3.1
+	version=3.2
 	fields=5 # manifest fields
 
 	directory_checks_enable_logging
@@ -2043,6 +2049,9 @@ method_list_manifest_entries () {
 	# load mysql commands
 	mysql_commands
 
+	mysqlexec=${CONFIG_mysql_exec}
+	mysqlshowexec=${CONFIG_mysql_show_exec}
+	dumpexec=${CONFIG_mysql_dump_exec}
 	login_opt="--user=${CONFIG_mysql_dump_username} --password=${CONFIG_mysql_dump_password} --host="${CONFIG_mysql_dump_host}""
 
 	[[ "${CONFIG_mysql_dump_useloginpath}" = "yes" ]]    && {
@@ -2052,7 +2061,7 @@ method_list_manifest_entries () {
 	export LC_ALL=C
 	PROGNAME=`basename $0`
 	PATH=${PATH}:/usr/local/bin:/usr/bin:/bin:/usr/local/mysql/bin
-	version=3.1
+	version=3.2
 	fields=5 # manifest fields
 
 	set_datetime_vars
