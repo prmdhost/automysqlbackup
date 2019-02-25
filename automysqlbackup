@@ -217,13 +217,7 @@ days_of_month() {
 # @return:	returns false if creation of temporary file failed or it can't be removed afterwards; else true
 # @deps:	(none)
 chk_folder_writable () {
-  local temp; temp="$(mktemp "$1"/tmp.XXXXXX)"
-  if (( $? == 0 )); then
-    rm "${temp}" || return 1
-    return 0
-  else
-    return 1
-  fi
+  [ -w "$1"/ ] && return 0 || return 1
 }
 
 # @info:	bzip2 compression
